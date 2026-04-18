@@ -1,12 +1,29 @@
+
+
+from django.http import HttpResponse
 from django.shortcuts import render
-from .models import *
+from django.template.loader import render_to_string
+from pdfkit import pdfkit
+
+from .forms import *
 
 def home(request):
-    profile = Profile.objects.first()
-    context = {
-        "profile": profile,
-        "skills": Skill.objects.all(),
-        "projects": Project.objects.all(),
-        "education": Education.objects.all(),
-    }
-    return render(request, "portfolio/home.html", context)
+    profile = HomeProfile.objects.first()
+    skills = Skill.objects.all()
+    projects = Project.objects.all()
+    experiences = Experience.objects.all()
+    achievements = Achievement.objects.all()
+    social = SocialMedia.objects.first()
+    contacts = Contact.objects.first()
+    resume = Resume.objects.first()  # ← shu qatorni qo'shing
+
+    return render(request, 'index.html', {
+        'profile': profile,
+        'skills': skills,
+        'projects': projects,
+        'experiences': experiences,
+        'achievements': achievements,
+        'social': social,
+        'contacts': contacts,
+        'resume': resume,  # ← shu qatorni qo'shing
+    })

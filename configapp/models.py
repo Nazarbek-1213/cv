@@ -1,50 +1,75 @@
 from django.db import models
 
-class Profile(models.Model):
-    full_name = models.CharField(max_length=120)
-    title = models.CharField(max_length=160, blank=True)  # masalan: Backend Developer
-    location = models.CharField(max_length=120, blank=True)
-    email = models.EmailField(blank=True)
-    phone = models.CharField(max_length=50, blank=True)
-    about = models.TextField(blank=True)
-    
+SKILL_SECTIONS = (
+    ('BACKEND_DEVELOPMENT', 'Backend Development'),
+    ('DEVOPS_AND_CLOUDING', 'DevOps and Cloud'),
+    ('AI_AND_MACHINELEARNING', 'AI and Machine Learning'),
+    ('DATA_AND_FRONTEND', 'Data and Frontend'),
+)
 
-    github = models.URLField(blank=True)
-    linkedin = models.URLField(blank=True)
-    telegram = models.URLField(blank=True)
-    instagram=models.URLField(blank=True)
+
+class HomeProfile(models.Model):
+    about_me = models.TextField(default='')
+    job = models.CharField(max_length=32, default='')
+    projects = models.CharField(max_length=32, default='')
 
     def __str__(self):
-        return self.full_name
+        return self.job
+
+
+class Experience(models.Model):
+    project_name = models.CharField(max_length=255, default='')
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    description = models.CharField(max_length=255, default='')
+
+    def __str__(self):
+        return self.project_name
 
 
 class Skill(models.Model):
-    name = models.CharField(max_length=80)
-    level = models.PositiveSmallIntegerField(default=70)  # 0..100
+    skill_name = models.CharField(max_length=40)
+    section = models.CharField(max_length=32, choices=SKILL_SECTIONS)
 
     def __str__(self):
-        return self.name
-    
+        return self.skill_name
+
+
+class Achievement(models.Model):
+    name_a = models.CharField(max_length=255, null=True, blank=True)
+    photo = models.ImageField(upload_to='achievements/', null=True, blank=True)
+    description = models.TextField(default='')
+
+    def __str__(self):
+        return self.name_a or ''
+
+
 class Project(models.Model):
-    name = models.CharField(max_length=140)
-    description = models.TextField(blank=True)
-    link = models.URLField(blank=True)
-    github = models.URLField(blank=True)
-    tech_stack = models.CharField(max_length=200, blank=True)  
+    name_p = models.CharField(max_length=100, default='')
+    work_description = models.TextField(default='')
+    technologies = models.CharField(max_length=255, default='')  # typo fixed
 
     def __str__(self):
-        return self.name
+        return self.name_p
 
 
-class Education(models.Model):
-    university=models.CharField(max_length=10)
-    place = models.CharField(max_length=160)
-    program = models.CharField(max_length=160, blank=True)
-    start_year = models.PositiveSmallIntegerField()
-    end_year = models.PositiveSmallIntegerField(blank=True, null=True)
-
-    class Meta:
-        ordering = ["-start_year"]
+class Contact(models.Model):
+    email = models.EmailField()
+    phone = models.CharField(max_length=20, default='')
+    location = models.CharField(max_length=100, default='')
 
     def __str__(self):
-        return self.place
+        return self.email
+
+
+class SocialMedia(models.Model):
+    github = models.CharField(max_length=100, default='')
+    instagram = models.CharField(max_length=100, default='')
+    telegram = models.CharField(max_length=100, default='')
+    linkedin = models.CharField(max_length=100, default='')
+
+    def __str__(self):
+        return self.instagram
+
+class Resume(models.Model):
+    file = models.FileField(upload_to='resume/')

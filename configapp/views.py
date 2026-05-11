@@ -1,10 +1,4 @@
-
-
-from django.http import HttpResponse
 from django.shortcuts import render
-from django.template.loader import render_to_string
-from pdfkit import pdfkit
-
 from .forms import *
 
 def home(request):
@@ -25,5 +19,5 @@ def home(request):
         'achievements': achievements,
         'social': social,
         'contacts': contacts,
-        'resume': resume,  # ← shu qatorni qo'shing
+        'resume': resume,
     })

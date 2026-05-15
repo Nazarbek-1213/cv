@@ -21,7 +21,7 @@ from django.core.management.base import BaseCommand
 
 from configapp.models import (
     HomeProfile, Experience, Skill, Project, SocialMedia,
-    Contact, SiteSettings,
+    Contact, SiteSettings, Achievement, Language,
 )
 
 
@@ -173,20 +173,29 @@ class Command(BaseCommand):
         hp.job = hp.job_en
         if not hp.about_me_en:
             hp.about_me_en = (
-                "I build scalable backend systems and intelligent AI APIs. "
-                "Currently leading the KinoFond — Uzbekistan National Cinema Fund — platform."
+                "I'm a passionate backend developer focused on building scalable digital solutions "
+                "that solve real-world problems. I specialize in Python technologies — particularly "
+                "FastAPI, Django, REST APIs and modern backend architectures. I enjoy designing APIs "
+                "and exploring intelligent bots powered by AI. I strongly believe in continuous "
+                "learning, AI–backend integration, clean code and building reliable systems."
             )
         if not hp.about_me_uz:
             hp.about_me_uz = (
-                "Scalable backend tizimlari va intelligent AI APIlarini quraman. "
-                "Hozir KinoFond — O'zbekiston Milliy Kinofondi platformasini olib boryapman."
+                "Men real dunyo muammolarini hal qiluvchi scalable raqamli yechimlar qurishga "
+                "qiziquvchan backend dasturchiman. Python texnologiyalari — ayniqsa FastAPI, "
+                "Django, REST API va zamonaviy backend arxitekturalariga ixtisoslashganman. "
+                "API'lar dizayni va AI quvvati bilan ishlovchi aqlli botlar bilan ishlashni "
+                "yaxshi ko'raman. Backend sohasini doimiy o'rganish, AI bilan tizim integratsiyasi, "
+                "toza kod va mustahkam tizimlar qurishga ishonaman."
             )
         if not hp.about_me_ru:
             hp.about_me_ru = (
-                "Создаю масштабируемые backend-"
-                "системы и интеллектуальные AI-API. "
-                "Сейчас веду платформу KinoFond — "
-                "Национальный Кинофонд Узбекистана."
+                "Я страстный backend-разработчик, нацеленный на создание масштабируемых "
+                "цифровых решений, которые решают реальные задачи. Специализируюсь на Python — "
+                "особенно FastAPI, Django, REST API и современных backend-архитектурах. "
+                "Люблю проектировать API и исследовать интеллектуальных ботов на базе AI. "
+                "Верю в постоянное обучение, интеграцию AI и backend, чистый код и "
+                "построение надёжных систем."
             )
         if not hp.about_me:
             hp.about_me = hp.about_me_en
@@ -245,33 +254,92 @@ class Command(BaseCommand):
             added += 1
         self.stdout.write(self.style.SUCCESS(f'[ok] Technical Arsenal: +{added} skills (no dups)'))
 
-        # ---------- 7. Contact + Social placeholders (only if empty) ----------
+        # ---------- 7. Contact + Social (only if empty) ----------
         if not Contact.objects.exists():
             Contact.objects.create(
-                email='nazarbek@example.com', phone='+998 90 000 00 00',
-                location='Tashkent, Uzbekistan',
-                location_en='Tashkent, Uzbekistan',
-                location_uz="Toshkent, O'zbekiston",
-                location_ru='Ташкент, Узбекистан',
+                email='nazarbeksafarov895@gmail.com',
+                phone='+998 91 833 65 35',
+                location='Uzbekistan, Tashkent',
+                location_en='Uzbekistan, Tashkent',
+                location_uz="O'zbekiston, Toshkent",
+                location_ru='Узбекистан, Ташкент',
             )
-            self.stdout.write(self.style.SUCCESS('[ok] Contact placeholder'))
+            self.stdout.write(self.style.SUCCESS('[ok] Contact'))
 
         if not SocialMedia.objects.exists():
             SocialMedia.objects.create(
                 github='https://github.com/Nazarbek-1213',
-                linkedin='', telegram='', instagram='',
+                linkedin='https://www.linkedin.com/in/nazarbek-safarov-6390ab3b2/',
+                telegram='https://web.telegram.org/k/#@Safarov_Nazarbek',
+                instagram='https://www.instagram.com/nazarbek_safarov1/',
             )
-            self.stdout.write(self.style.SUCCESS('[ok] SocialMedia placeholder'))
+            self.stdout.write(self.style.SUCCESS('[ok] SocialMedia'))
 
-        # ---------- 8. Site settings ----------
+        # ---------- 8. Languages ----------
+        lang_defaults = [
+            # name_en, name_uz, name_ru, level_en, level_uz, level_ru, flag, order
+            ('English',  'Ingliz',    'Английский', 'Fluent',          'Yuqori daraja',    'Свободно',         '🇬🇧', 0),
+            ('Russian',  'Rus',       'Русский',    'Pre-Intermediate','Pre-Intermediate', 'Pre-Intermediate', '🇷🇺', 1),
+            ('Uzbek',    "O'zbek",    'Узбекский',  'Native',          'Ona tili',         'Родной',           '🇺🇿', 2),
+        ]
+        lang_added = 0
+        for n_en, n_uz, n_ru, l_en, l_uz, l_ru, flag, order in lang_defaults:
+            obj, created = Language.objects.get_or_create(
+                name_en=n_en,
+                defaults=dict(
+                    name=n_en, name_uz=n_uz, name_ru=n_ru,
+                    level=l_en, level_en=l_en, level_uz=l_uz, level_ru=l_ru,
+                    flag=flag, order=order,
+                ),
+            )
+            if created:
+                lang_added += 1
+        self.stdout.write(self.style.SUCCESS(f'[ok] Languages: +{lang_added}'))
+
+        # ---------- 9. Achievement: combined diploma PDF + PNG preview ----------
+        diploma_png = 'achievements/diplomas_combined.png'
+        diploma_pdf = 'achievements/diplomas_combined.pdf'
+        ach = Achievement.objects.filter(photo=diploma_png).first()
+        if ach is None and not Achievement.objects.exists():
+            ach = Achievement.objects.create()
+        if ach is not None:
+            ach.name_a_en = 'Diplomas & Certificates'
+            ach.name_a_uz = 'Diplomlar va sertifikatlar'
+            ach.name_a_ru = 'Дипломы и сертификаты'
+            ach.name_a = ach.name_a_en
+            if not ach.description_en:
+                ach.description_en = (
+                    "Combined certificate: 8-month backend course at Najot Ta'lim with 5+ "
+                    "self-built projects, plus additional certificate. Currently part-time "
+                    "backend developer at a state organisation."
+                )
+            if not ach.description_uz:
+                ach.description_uz = (
+                    "Birlashtirilgan sertifikat: Najot Ta'lim'da 8 oylik backend kursi "
+                    "(5+ shaxsiy loyiha) va qo'shimcha sertifikat. Hozir davlat tashkilotida "
+                    "part-time backend dasturchi."
+                )
+            if not ach.description_ru:
+                ach.description_ru = (
+                    "Объединённый сертификат: 8-месячный курс backend в Najot Ta'lim "
+                    "с 5+ собственными проектами плюс дополнительный сертификат. "
+                    "Сейчас part-time backend-разработчик в государственной организации."
+                )
+            if not ach.description:
+                ach.description = ach.description_en
+            ach.photo = diploma_png
+            ach.pdf_file = diploma_pdf
+            ach.save()
+            self.stdout.write(self.style.SUCCESS('[ok] Achievement: diploma'))
+
+        # ---------- 10. Site settings ----------
         site = SiteSettings.get()
         if not site.footer_signature:
             site.footer_signature = 'Powered by Nazarbek'
         site.save()
         self.stdout.write(self.style.SUCCESS('[ok] SiteSettings'))
 
-        # ---------- 9. Backfill 3-lang fields everywhere ----------
-        from configapp.models import Achievement
+        # ---------- 11. Backfill 3-lang fields everywhere ----------
         backfill_translations(HomeProfile, ['about_me', 'job'])
         backfill_translations(Experience, ['project_name', 'description'])
         backfill_translations(Project, ['name_p', 'work_description'])

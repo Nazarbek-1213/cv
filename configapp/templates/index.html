@@ -294,12 +294,114 @@ footer { border-top: 1px solid var(--border); padding: 28px 40px; text-align: ce
 .reveal-stagger.visible > *:nth-child(5) { opacity: 1; transform: none; transition-delay: .4s }
 .reveal-stagger.visible > *:nth-child(6) { opacity: 1; transform: none; transition-delay: .5s }
 
-@media (max-width: 768px) {
-  nav { padding: 14px 20px; }
-  .nav-links { display: none; }
-  main { padding: 0 20px; }
+/* ---------- HAMBURGER MENU (mobile) ---------- */
+.nav-burger { display: none; width: 36px; height: 36px; border-radius: 10px;
+  background: var(--glass); border: 1px solid var(--border); color: var(--text);
+  cursor: pointer; align-items: center; justify-content: center; flex-direction: column;
+  gap: 4px; padding: 0; transition: background .2s; }
+.nav-burger span { display: block; width: 16px; height: 2px; background: currentColor;
+  border-radius: 2px; transition: transform .3s var(--ease), opacity .2s; }
+.nav-burger.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.nav-burger.open span:nth-child(2) { opacity: 0; }
+.nav-burger.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+/* ---------- TABLET (<= 900px) ---------- */
+@media (max-width: 900px) {
+  nav { padding: 14px 22px; }
+  main { padding: 0 22px; }
+  section { padding: 70px 0; }
+  .hero { padding-top: 80px; min-height: auto; padding-bottom: 60px; }
+  .section-title { margin-bottom: 38px; }
   .contact-wrapper { grid-template-columns: 1fr; }
-  footer { padding: 28px 20px; }
+  .glow-1, .glow-2, .glow-3 { filter: blur(120px); opacity: .7; }
+  footer { padding: 24px 22px; }
+}
+
+/* ---------- MOBILE (<= 768px) ---------- */
+@media (max-width: 768px) {
+  nav { padding: 12px 18px; }
+  main { padding: 0 18px; }
+  section { padding: 56px 0; }
+  .hero { padding-top: 96px; padding-bottom: 40px; }
+  .hero-eyebrow { font-size: 11px; letter-spacing: .18em; }
+  .hero h1 { margin: 14px 0 20px; line-height: 1.05; }
+  .hero-desc { font-size: 13.5px; line-height: 1.7; }
+  .hero-cta { gap: 10px; margin-top: 26px; }
+  .hero-cta .btn, #cv-dl-link { padding: 12px 20px; font-size: 13px; }
+  .cv-note { display: none; }
+  .scroll-hint { display: none; }
+  .section-title { margin-bottom: 30px; line-height: 1.15; }
+  .section-label { font-size: 10px; }
+
+  /* hamburger nav */
+  .nav-burger { display: flex; }
+  .nav-links {
+    position: fixed; top: 60px; left: 12px; right: 12px;
+    display: none; flex-direction: column; gap: 4px;
+    padding: 14px; border-radius: 16px;
+    background: var(--nav-bg); border: 1px solid var(--border);
+    backdrop-filter: blur(28px);
+    box-shadow: 0 20px 50px rgba(0,0,0,.4);
+  }
+  .nav-links.open { display: flex; }
+  .nav-links li { list-style: none; }
+  .nav-links a {
+    display: block; padding: 12px 14px; font-size: 13px; letter-spacing: .08em;
+    color: var(--text); border-radius: 10px;
+  }
+  .nav-links a:hover, .nav-links a.active-link { background: rgba(56,189,248,.08); color: var(--accent); }
+  .nav-logo { max-width: 60vw; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* compact lang + ach side-by-side stacks */
+  .combo-grid { grid-template-columns: 1fr; gap: 24px; }
+  .lang-row { padding: 11px 14px; }
+  .lang-flag { font-size: 18px; }
+  .lang-name { font-size: 12.5px; }
+
+  .ach-mini { grid-template-columns: 76px 1fr; gap: 12px; padding: 12px; }
+  .ach-mini-img { width: 76px; height: 76px; }
+  .ach-mini-name { font-size: 14px; }
+  .ach-mini-desc { font-size: 11px; -webkit-line-clamp: 2; }
+
+  /* skill chips slightly tighter */
+  .skill-tag { padding: 7px 14px; font-size: 12px; }
+  .skill-tags { gap: 8px; }
+
+  /* timeline indent */
+  .timeline { padding-left: 24px; }
+  .timeline-dot { left: -28px; }
+
+  /* contact / social */
+  .contact-item, .social-link { padding: 14px 16px; font-size: 13px; }
+  .contact-text { font-size: 13px; }
+
+  /* lightbox: full bleed, easy close */
+  .lightbox { padding: 12px; gap: 10px; }
+  .lightbox-img { max-width: 100%; border-radius: 10px; }
+  .lb-btn { padding: 10px 16px; font-size: 11px; }
+
+  footer { padding: 22px 18px; }
+  .footer-sign { font-size: 11px; padding: 8px 14px; }
+
+  /* perf: kill cursor visuals (already disabled by hover query) and reduce glows */
+  .glow-1 { width: 420px; height: 420px; }
+  .glow-2 { width: 320px; height: 320px; }
+  .glow-3 { display: none; }
+}
+
+/* ---------- SMALL PHONES (<= 420px) ---------- */
+@media (max-width: 420px) {
+  .hero h1 { font-size: clamp(36px, 11vw, 56px); }
+  .hero-cta .btn, #cv-dl-link { flex: 1 1 100%; justify-content: center; }
+  .nav-logo { max-width: 50vw; font-size: 12px; }
+  .ach-mini { grid-template-columns: 64px 1fr; }
+  .ach-mini-img { width: 64px; height: 64px; }
+}
+
+/* prefers-reduced-motion: respect user choice */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
+  .glow-1, .glow-2, .glow-3 { animation: none; }
 }
 </style>
 </head>
@@ -344,6 +446,9 @@ footer { border-top: 1px solid var(--border); padding: 28px 40px; text-align: ce
       <button class="lang-btn active" data-lang="en" onclick="setLang('en',this)">EN</button>
     </div>
     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></button>
+    <button class="nav-burger" id="nav-burger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </nav>
 
@@ -748,6 +853,27 @@ function setLang(lang, btn) {
   try { localStorage.setItem('lang', lang); } catch (e) {}
   applyLang(lang);
 }
+
+/* HAMBURGER MENU (mobile) */
+(function () {
+  const burger = document.getElementById('nav-burger');
+  const links = document.querySelector('.nav-links');
+  if (!burger || !links) return;
+  const close = () => { burger.classList.remove('open'); links.classList.remove('open'); burger.setAttribute('aria-expanded','false'); };
+  const toggle = () => {
+    const isOpen = burger.classList.toggle('open');
+    links.classList.toggle('open', isOpen);
+    burger.setAttribute('aria-expanded', String(isOpen));
+  };
+  burger.addEventListener('click', toggle);
+  links.addEventListener('click', (e) => { if (e.target.tagName === 'A') close(); });
+  document.addEventListener('click', (e) => {
+    if (!links.classList.contains('open')) return;
+    if (e.target === burger || burger.contains(e.target)) return;
+    if (!links.contains(e.target)) close();
+  });
+  window.addEventListener('resize', () => { if (window.innerWidth > 768) close(); });
+})();
 
 /* ACTIVE NAV */
 window.addEventListener('scroll', () => {

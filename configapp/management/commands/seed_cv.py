@@ -1,0 +1,282 @@
+"""Idempotent seed/cleanup for the CV site.
+
+What this command does on every run:
+  * Removes any Experience / Project entries whose name does NOT contain
+    'kinofond' (case-insensitive). The mini-OLX placeholder and similar
+    leftovers are wiped here.
+  * Deduplicates KinoFond entries to exactly one Experience + one Project.
+  * Refreshes the KinoFond Experience (Mar 2026 -> present) with the full
+    description in 3 languages.
+  * Ensures Technical Arsenal contains both the general stack and the
+    KinoFond-specific tech (HTML5 video streaming, HTTP Range, email OTP,
+    X-Accel-Redirect, etc.) — no duplicates.
+  * Back-fills `_uz` / `_ru` / `_en` fields from the legacy single-language
+    field on every row, so old data is multilingual-ready.
+  * Sets a default Contact / Social row only when none exist.
+  * Ensures a single SiteSettings row with `Powered by Nazarbek`.
+"""
+from datetime import date
+
+from django.core.management.base import BaseCommand
+
+from configapp.models import (
+    HomeProfile, Experience, Skill, Project, SocialMedia,
+    Contact, SiteSettings,
+)
+
+
+KINOFOND_DESCRIPTIONS = {
+    'en': (
+        "End-to-end Django platform for the National Cinema Fund of Uzbekistan. "
+        "Public catalogue with genre / year / sort filters and an HTML5 player streaming "
+        "MP4 / MKV / WebM from disk via HTTP Range requests. Custom admin dashboard (not "
+        "Django admin) protected by email OTP with brute-force throttling, daily / monthly "
+        "visitor analytics and a Codex-themed UI. Auto-sync command imports films from "
+        "C:\\kinolar with optional JSON metadata and poster pickup. Production stack: "
+        "PostgreSQL + Redis + Nginx X-Accel-Redirect."
+    ),
+    'uz': (
+        "O'zbekiston Milliy Kinofondi uchun to'liq Django platforma. Janr / yil / saralash "
+        "filtrlari bilan ommaviy katalog va diskdagi MP4 / MKV / WebM fayllarni HTTP Range "
+        "orqali oqib beruvchi HTML5 pleyer. Custom admin paneli (Django admin emas) — "
+        "email-OTP, brute-force himoyasi, kunlik / oylik analitika va Codex dizayni. "
+        "C:\\kinolar papkasidan filmlarni JSON metadata va afishalar bilan avto-sinxronlash. "
+        "Production: PostgreSQL + Redis + Nginx X-Accel-Redirect."
+    ),
+    'ru': (
+        "Полная Django-платформа для Национального Кинофонда Узбекистана. Публичный каталог "
+        "с фильтрами по жанру / году / сортировке и HTML5-плеер, стримящий MP4 / MKV / WebM "
+        "с диска через HTTP Range. Кастомная админ-панель (не Django admin) с защитой "
+        "email-OTP, антибрут-форсом, аналитикой посещений и дизайном Codex. Авто-синхронизация "
+        "фильмов из C:\\kinolar с JSON-метаданными и обложками. Production: PostgreSQL + Redis "
+        "+ Nginx X-Accel-Redirect."
+    ),
+}
+
+KINOFOND_TECH = (
+    'Django · PostgreSQL · Redis · Nginx · HTML5 Video '
+    '· HTTP Range · Email OTP · X-Accel-Redirect · Codex UI'
+)
+
+
+# Skill name + Technical Arsenal section. Covers the general stack plus
+# everything the KinoFond zip uses.
+TECHNICAL_ARSENAL = [
+    # core backend
+    ('Python', 'BACKEND_DEVELOPMENT'),
+    ('Django', 'BACKEND_DEVELOPMENT'),
+    ('Django ORM', 'BACKEND_DEVELOPMENT'),
+    ('Django Admin (custom)', 'BACKEND_DEVELOPMENT'),
+    ('Django REST Framework', 'BACKEND_DEVELOPMENT'),
+    ('FastAPI', 'BACKEND_DEVELOPMENT'),
+    ('PostgreSQL', 'BACKEND_DEVELOPMENT'),
+    ('Redis', 'BACKEND_DEVELOPMENT'),
+    ('Email OTP auth', 'BACKEND_DEVELOPMENT'),
+    ('HMAC / timing-safe compare', 'BACKEND_DEVELOPMENT'),
+    ('HTTP Range streaming', 'BACKEND_DEVELOPMENT'),
+    ('Telegram Bot API', 'BACKEND_DEVELOPMENT'),
+    ('aiogram', 'BACKEND_DEVELOPMENT'),
+    # devops
+    ('Docker', 'DEVOPS_AND_CLOUDING'),
+    ('Nginx', 'DEVOPS_AND_CLOUDING'),
+    ('Nginx X-Accel-Redirect', 'DEVOPS_AND_CLOUDING'),
+    ('Gunicorn', 'DEVOPS_AND_CLOUDING'),
+    ('Linux', 'DEVOPS_AND_CLOUDING'),
+    ('Render / Railway deploy', 'DEVOPS_AND_CLOUDING'),
+    # AI / ML
+    ('OpenAI API', 'AI_AND_MACHINELEARNING'),
+    ('AI Agents', 'AI_AND_MACHINELEARNING'),
+    ('LangChain', 'AI_AND_MACHINELEARNING'),
+    ('Prompt Engineering', 'AI_AND_MACHINELEARNING'),
+    ('Vector DBs', 'AI_AND_MACHINELEARNING'),
+    # data & frontend
+    ('JavaScript', 'DATA_AND_FRONTEND'),
+    ('HTML / CSS', 'DATA_AND_FRONTEND'),
+    ('HTML5 Video player', 'DATA_AND_FRONTEND'),
+    ('Pandas', 'DATA_AND_FRONTEND'),
+]
+
+
+def backfill_translations(model, base_fields):
+    """For every row, mirror the legacy single-language field into empty _en/_uz/_ru
+    (and the other direction if the legacy field is empty but _en is set)."""
+    for row in model.objects.all():
+        changed = False
+        for f in base_fields:
+            legacy = getattr(row, f, '') or ''
+            for suffix in ('_en', '_uz', '_ru'):
+                tf = f + suffix
+                if not hasattr(row, tf):
+                    continue
+                if not getattr(row, tf):
+                    setattr(row, tf, legacy)
+                    changed = True
+            if not legacy and hasattr(row, f + '_en') and getattr(row, f + '_en'):
+                setattr(row, f, getattr(row, f + '_en'))
+                changed = True
+        if changed:
+            row.save()
+
+
+def dedupe_to_one(qs):
+    """Keep only the lowest-id row, delete the rest. Returns the kept row (or None)."""
+    rows = list(qs.order_by('id'))
+    if not rows:
+        return None, 0
+    extras = rows[1:]
+    for r in extras:
+        r.delete()
+    return rows[0], len(extras)
+
+
+class Command(BaseCommand):
+    help = "Reset CV to a single KinoFond entry and refresh multilingual content."
+
+    def handle(self, *args, **options):
+        kw = 'kinofond'
+
+        # ---------- 1. Remove non-KinoFond Experience / Project ----------
+        exp_killed = 0
+        for e in Experience.objects.all():
+            name = (e.project_name_en or e.project_name or '').lower()
+            if kw not in name:
+                e.delete()
+                exp_killed += 1
+
+        proj_killed = 0
+        for p in Project.objects.all():
+            name = (p.name_p_en or p.name_p or '').lower()
+            if kw not in name:
+                p.delete()
+                proj_killed += 1
+
+        # ---------- 2. Dedupe KinoFond Experience / Project to one each ----------
+        kept_exp, exp_dup = dedupe_to_one(
+            Experience.objects.filter(project_name_en__icontains=kw)
+            | Experience.objects.filter(project_name__icontains=kw)
+        )
+        kept_proj, proj_dup = dedupe_to_one(
+            Project.objects.filter(name_p_en__icontains=kw)
+            | Project.objects.filter(name_p__icontains=kw)
+        )
+
+        self.stdout.write(self.style.WARNING(
+            f"[cleanup] removed {exp_killed} non-KinoFond experiences "
+            f"({exp_dup} dup), {proj_killed} non-KinoFond projects ({proj_dup} dup)"
+        ))
+
+        # ---------- 3. Home profile refreshed in 3 langs ----------
+        hp = HomeProfile.objects.first() or HomeProfile()
+        hp.job_en = 'AI Specialist and Backend Developer'
+        hp.job_uz = 'AI mutaxassis va Backend dasturchi'
+        hp.job_ru = 'AI-специалист и Backend-разработчик'
+        hp.job = hp.job_en
+        if not hp.about_me_en:
+            hp.about_me_en = (
+                "I build scalable backend systems and intelligent AI APIs. "
+                "Currently leading the KinoFond — Uzbekistan National Cinema Fund — platform."
+            )
+        if not hp.about_me_uz:
+            hp.about_me_uz = (
+                "Scalable backend tizimlari va intelligent AI APIlarini quraman. "
+                "Hozir KinoFond — O'zbekiston Milliy Kinofondi platformasini olib boryapman."
+            )
+        if not hp.about_me_ru:
+            hp.about_me_ru = (
+                "Создаю масштабируемые backend-"
+                "системы и интеллектуальные AI-API. "
+                "Сейчас веду платформу KinoFond — "
+                "Национальный Кинофонд Узбекистана."
+            )
+        if not hp.about_me:
+            hp.about_me = hp.about_me_en
+        hp.save()
+        self.stdout.write(self.style.SUCCESS('[ok] HomeProfile refreshed'))
+
+        # ---------- 4. KinoFond Experience (single, refreshed) ----------
+        kino = kept_exp or Experience()
+        kino.project_name = 'KinoFond — Uzbekistan National Cinema Fund'
+        kino.project_name_en = 'KinoFond — Uzbekistan National Cinema Fund'
+        kino.project_name_uz = "KinoFond — O'zbekiston Milliy Kinofondi"
+        kino.project_name_ru = 'KinoFond — Национальный Кинофонд Узбекистана'
+        kino.start_date = date(2026, 3, 1)
+        kino.end_date = None
+        kino.description = KINOFOND_DESCRIPTIONS['en']
+        kino.description_en = KINOFOND_DESCRIPTIONS['en']
+        kino.description_uz = KINOFOND_DESCRIPTIONS['uz']
+        kino.description_ru = KINOFOND_DESCRIPTIONS['ru']
+        kino.order = 0
+        kino.save()
+        self.stdout.write(self.style.SUCCESS('[ok] KinoFond Experience'))
+
+        # ---------- 5. KinoFond Project (single, refreshed) ----------
+        proj = kept_proj or Project()
+        proj.name_p = 'KinoFond — National Cinema Fund'
+        proj.name_p_en = 'KinoFond — National Cinema Fund'
+        proj.name_p_uz = 'KinoFond — Milliy Kinofond'
+        proj.name_p_ru = 'KinoFond — Национальный Кинофонд'
+        proj.work_description_en = (
+            "Django + PostgreSQL + Redis. Video streaming with HTTP Range, custom email-OTP "
+            "admin, C:\\kinolar auto-sync, multilingual public catalogue, full analytics dashboard."
+        )
+        proj.work_description_uz = (
+            "Django + PostgreSQL + Redis. HTTP Range orqali video streaming, email-OTP admin "
+            "paneli, C:\\kinolar avto-sinxronlash, ko'p tilli katalog, to'liq analitika dashboardi."
+        )
+        proj.work_description_ru = (
+            "Django + PostgreSQL + Redis. Видео-стриминг через HTTP Range, "
+            "кастомная админ-панель с email-OTP, "
+            "авто-синхронизация C:\\kinolar, мультиязычный каталог, аналитика."
+        )
+        proj.work_description = proj.work_description_en
+        proj.technologies = KINOFOND_TECH
+        proj.order = 0
+        proj.save()
+        self.stdout.write(self.style.SUCCESS('[ok] KinoFond Project'))
+
+        # ---------- 6. Technical Arsenal (skills): KinoFond tech included ----------
+        existing = {s.skill_name.lower() for s in Skill.objects.all()}
+        added = 0
+        for name, section in TECHNICAL_ARSENAL:
+            if name.lower() in existing:
+                continue
+            Skill.objects.create(skill_name=name, section=section)
+            existing.add(name.lower())
+            added += 1
+        self.stdout.write(self.style.SUCCESS(f'[ok] Technical Arsenal: +{added} skills (no dups)'))
+
+        # ---------- 7. Contact + Social placeholders (only if empty) ----------
+        if not Contact.objects.exists():
+            Contact.objects.create(
+                email='nazarbek@example.com', phone='+998 90 000 00 00',
+                location='Tashkent, Uzbekistan',
+                location_en='Tashkent, Uzbekistan',
+                location_uz="Toshkent, O'zbekiston",
+                location_ru='Ташкент, Узбекистан',
+            )
+            self.stdout.write(self.style.SUCCESS('[ok] Contact placeholder'))
+
+        if not SocialMedia.objects.exists():
+            SocialMedia.objects.create(
+                github='https://github.com/Nazarbek-1213',
+                linkedin='', telegram='', instagram='',
+            )
+            self.stdout.write(self.style.SUCCESS('[ok] SocialMedia placeholder'))
+
+        # ---------- 8. Site settings ----------
+        site = SiteSettings.get()
+        if not site.footer_signature:
+            site.footer_signature = 'Powered by Nazarbek'
+        site.save()
+        self.stdout.write(self.style.SUCCESS('[ok] SiteSettings'))
+
+        # ---------- 9. Backfill 3-lang fields everywhere ----------
+        from configapp.models import Achievement
+        backfill_translations(HomeProfile, ['about_me', 'job'])
+        backfill_translations(Experience, ['project_name', 'description'])
+        backfill_translations(Project, ['name_p', 'work_description'])
+        backfill_translations(Achievement, ['name_a', 'description'])
+        backfill_translations(Contact, ['location'])
+        self.stdout.write(self.style.SUCCESS('[ok] backfilled _uz / _ru / _en on all rows'))
+
+        self.stdout.write(self.style.SUCCESS('All done.'))

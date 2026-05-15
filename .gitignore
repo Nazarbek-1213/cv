@@ -40,3 +40,6 @@ Thumbs.db
 # Build
 build/
 dist/
+
+# Claude Code worktree / metadata
+.claude/

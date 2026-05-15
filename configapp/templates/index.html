@@ -886,6 +886,33 @@ window.addEventListener('scroll', () => {
   });
 });
 
+/* VISIT PING — fire-and-forget once per session to /api/visit/.
+   Server-side throttles further (1h cookie) and ignores bots. */
+(function () {
+  try {
+    if (sessionStorage.getItem('_v_sent')) return;
+  } catch (e) {}
+  const payload = JSON.stringify({
+    referrer: document.referrer || '',
+    page: location.pathname || '/',
+    screen: (window.innerWidth || 0) + 'x' + (window.innerHeight || 0),
+  });
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/visit/', new Blob([payload], { type: 'application/json' }));
+    } else {
+      fetch('/api/visit/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+        credentials: 'same-origin',
+      }).catch(() => {});
+    }
+    sessionStorage.setItem('_v_sent', '1');
+  } catch (e) {}
+})();
+
 /* SECRET ADMIN ENTRY — "Powered by Nazarbek" is a hidden button.
    Single click does nothing. Triple-click (or long-press) opens /admin/. */
 (function () {

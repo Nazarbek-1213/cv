@@ -15,14 +15,49 @@ What this command does on every run:
   * Sets a default Contact / Social row only when none exist.
   * Ensures a single SiteSettings row with `Powered by Nazarbek`.
 """
+import os
 from datetime import date
 
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 from configapp.models import (
     HomeProfile, Experience, Skill, Project, SocialMedia,
     Contact, SiteSettings, Achievement, Language,
 )
+
+
+def ensure_admin(stdout, style):
+    """Create/refresh a superuser from env vars (idempotent).
+
+    Env:
+      ADMIN_USERNAME  (default: 'admin')
+      ADMIN_EMAIL     (optional)
+      ADMIN_PASSWORD  (required to create; without it we skip silently)
+    """
+    User = get_user_model()
+    username = os.environ.get('ADMIN_USERNAME', 'admin').strip() or 'admin'
+    email = os.environ.get('ADMIN_EMAIL', '').strip()
+    password = os.environ.get('ADMIN_PASSWORD', '').strip()
+    if not password:
+        stdout.write(style.WARNING(
+            '[admin] skipped: ADMIN_PASSWORD env var not set'
+        ))
+        return
+    user, created = User.objects.get_or_create(
+        username=username,
+        defaults={'email': email, 'is_staff': True, 'is_superuser': True},
+    )
+    # Always re-apply privileges and password so a redeploy can rotate them.
+    user.is_staff = True
+    user.is_superuser = True
+    if email:
+        user.email = email
+    user.set_password(password)
+    user.save()
+    stdout.write(style.SUCCESS(
+        f'[admin] superuser "{username}" {"created" if created else "updated"}'
+    ))
 
 
 KINOFOND_DESCRIPTIONS = {
@@ -346,5 +381,8 @@ class Command(BaseCommand):
         backfill_translations(Achievement, ['name_a', 'description'])
         backfill_translations(Contact, ['location'])
         self.stdout.write(self.style.SUCCESS('[ok] backfilled _uz / _ru / _en on all rows'))
+
+        # ---------- 12. Superuser (idempotent, env-var driven) ----------
+        ensure_admin(self.stdout, self.style)
 
         self.stdout.write(self.style.SUCCESS('All done.'))
